@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Guard for the GENERIC workbench repo: blocks client content before it is committed.
+# Runs from Windows git (Git for Windows bash) and from WSL git.
+set -u
+root="$(git rev-parse --show-toplevel)"
+fail=0
+
+# 1) no paths under clients/ and no data-like files
+bad_paths="$(git diff --cached --name-only --diff-filter=ACMR | grep -E '^clients/|\.(pbix|abf|csv|xlsx|xls|parquet|bak)$|(^|/)\.env$' || true)"
+if [ -n "$bad_paths" ]; then
+  echo "BLOCKED: client or data files staged in the generic repo:"; echo "$bad_paths" | sed 's/^/  /'; fail=1
+fi
+
+# 2) client terms (local list, never committed): clients/.client-terms, one term per line
+terms="$root/clients/.client-terms"
+added="$(git diff --cached -U0 --diff-filter=ACMR | grep -E '^\+[^+]' || true)"
+if [ -f "$terms" ] && [ -n "$added" ]; then
+  while IFS= read -r t; do
+    t="$(echo "$t" | tr -d '\r')"; [ -z "$t" ] && continue; case "$t" in \#*) continue;; esac
+    if echo "$added" | grep -qiF -- "$t"; then echo "BLOCKED: client term found in staged changes: '$t'"; fail=1; fi
+  done < "$terms"
+fi
+
+# 3) generic patterns that are almost always client-specific
+if echo "$added" | grep -qiE '[a-z0-9-]+\.datawarehouse\.fabric\.microsoft\.com|[a-z0-9-]+\.(sharepoint|dfs\.core\.windows)\.(com|net)'; then
+  echo "BLOCKED: a Fabric/SharePoint/storage host name is in the staged changes."; fail=1
+fi
+if echo "$added" | grep -qiE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'; then
+  echo "BLOCKED: a GUID (workspace/item id?) is in the staged changes. Use a placeholder."; fail=1
+fi
+
+[ $fail -eq 0 ] || { echo "Fix the above, or anonymise. (Bypass only if you are sure: git commit --no-verify)"; exit 1; }
+exit 0

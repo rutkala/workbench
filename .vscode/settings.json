@@ -1,0 +1,6 @@
+{
+  "files.eol": "\n",
+  "[powershell]": { "files.eol": "\r\n" },
+  "files.exclude": { "**/.pbi/cache.abf": true },
+  "search.exclude": { "clients/**": true }
+}

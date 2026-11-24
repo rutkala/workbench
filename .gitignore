@@ -1,0 +1,19 @@
+# ALLOW-LIST. Everything is ignored unless listed below.
+# This repo is generic and goes to a personal GitHub repo. Client content must never get in.
+# Client repos live in /clients/ (each with its own git) and are ignored here on purpose.
+/*
+!/.gitignore
+!/.gitattributes
+!/README.md
+!/CLAUDE.md
+!/.claude/
+!/.vscode/
+!/framework/
+!/docs/
+
+# never, even inside allowed folders
+.claude/settings.local.json
+**/.env
+**/*.pbix
+**/*.abf
+**/.pbi/

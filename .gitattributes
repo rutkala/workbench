@@ -1,0 +1,5 @@
+* text=auto
+*.sh   text eol=lf
+*.ps1  text eol=crlf
+framework/git/hooks/*         text eol=lf
+framework/git/client-hooks/*  text eol=lf

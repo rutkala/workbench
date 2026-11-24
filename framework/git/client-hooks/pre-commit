@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Guard for CLIENT repos: blocks files that can carry real data.
+set -u
+bad="$(git diff --cached --name-only --diff-filter=ACMR | grep -iE '\.(pbix|abf|csv|xlsx|xls|parquet|bak|mdf|ldf)$|/\.pbi/cache\.abf$|(^|/)\.env$' || true)"
+if [ -n "$bad" ]; then
+  echo "BLOCKED: files that can contain real data are staged:"; echo "$bad" | sed 's/^/  /'
+  echo "Remove them (git restore --staged <file>). Bypass only if you are sure: git commit --no-verify"; exit 1
+fi
+big="$(git diff --cached --name-only --diff-filter=ACMR | while read -r f; do [ -f "$f" ] && [ "$(wc -c < "$f")" -gt 5000000 ] && echo "$f"; done)"
+if [ -n "$big" ]; then echo "BLOCKED: files over 5 MB staged (data?):"; echo "$big" | sed 's/^/  /'; exit 1; fi
+exit 0
