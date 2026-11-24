@@ -31,7 +31,11 @@ Pin: origin "packages.microsoft.com"
 Pin-Priority: -10
 EOF
 apt-get update -y
-apt-get install -y dotnet-sdk-8.0 sqlcmd
+apt-get install -y dotnet-sdk-8.0
+# sqlcmd: the Ubuntu 24.04 feed has no 'sqlcmd' package; mssql-tools18 provides it (same -C/-Q/-h options)
+ACCEPT_EULA=Y apt-get install -y mssql-tools18 unixodbc
+ln -sf /opt/mssql-tools18/bin/sqlcmd /usr/local/bin/sqlcmd
+sqlcmd -? >/dev/null 2>&1 || { echo "sqlcmd not working"; exit 1; }
 
 log "isolation: /etc/wsl.conf"
 cat > /etc/wsl.conf <<EOF
