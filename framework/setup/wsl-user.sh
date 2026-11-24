@@ -12,7 +12,10 @@ git config --global pull.ff only
 
 echo "--- npm without sudo, report authoring CLI (validation only, no service access)"
 mkdir -p "$HOME/.npm-global"; npm config set prefix "$HOME/.npm-global"
-grep -q 'npm-global/bin' "$HOME/.bashrc" || echo 'export PATH="$HOME/.npm-global/bin:$HOME/.local/bin:$HOME/.dotnet/tools:$PATH"' >> "$HOME/.bashrc"
+# both files: .bashrc for interactive shells, .profile for login/non-interactive ones (scripts, Claude's tools)
+for f in "$HOME/.bashrc" "$HOME/.profile"; do
+  grep -q 'npm-global/bin' "$f" 2>/dev/null || echo 'export PATH="$HOME/.npm-global/bin:$HOME/.local/bin:$HOME/.dotnet/tools:$PATH"' >> "$f"
+done
 export PATH="$HOME/.npm-global/bin:$HOME/.local/bin:$PATH"
 npm install -g @microsoft/powerbi-report-authoring-cli >/dev/null 2>&1 && echo "  powerbi-report-author installed" || echo "  WARN: report CLI install failed (can retry later)"
 
