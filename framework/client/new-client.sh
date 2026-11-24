@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 # Create or adopt a CLIENT repo under <workbench>/clients/<name>.
 #
-#   new-client.sh <name> [--adopt] [--dev-server <host>] [--database <db>] [--term <client term>]...
+#   new-client.sh <name> [--adopt] [--track-files] [--dev-server <host>] [--database <db>] [--term <client term>]...
 #
 #   <name>          folder name: lowercase, digits, dashes (one repo per Fabric workspace family: DEV/UAT/PROD = branches)
-#   --adopt         the folder is already a git repo (e.g. you cloned the client's DevOps repo there)
+#   --adopt         the folder is already a git repo (e.g. you cloned the client's DevOps repo there).
+#                   Workbench files stay LOCAL (never pushed): CLAUDE.md, docs/, synthetic/ are listed in
+#                   .git/info/exclude and the connection filter in .git/info/attributes. The client's tree is untouched.
+#   --track-files   with --adopt: write .gitignore/.gitattributes into the repo instead (client agreed to host them)
 #   --dev-server    real DEV SQL endpoint host of the client (kept in git; swapped to localhost locally)
 #   --database      database name (same name is used for the local synthetic database)
 #   --term          a word that must never appear in the generic repo (client name, domain...). Repeatable.
@@ -14,10 +17,11 @@ set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 wb="$(cd "$here/../.." && pwd)"
 name="${1:?usage: new-client.sh <name> [--adopt] [--dev-server host] [--database db] [--term t]...}"; shift
-adopt=0; server=""; db=""; terms=()
+adopt=0; track=0; server=""; db=""; terms=()
 while [ $# -gt 0 ]; do
   case "$1" in
     --adopt) adopt=1;;
+    --track-files) track=1;;
     --dev-server) server="$2"; shift;;
     --database) db="$2"; shift;;
     --term) terms+=("$2"); shift;;
@@ -39,29 +43,41 @@ cd "$dir"
 
 # --- files (only created when missing) ---
 mk() { [ -e "$1" ] || { mkdir -p "$(dirname "$1")"; cat > "$1"; echo "  created $1"; }; }
-mk .gitignore <<'EOF'
-# Client repo: never commit anything that can hold real data.
+IGNORE_RULES='# never commit anything that can hold real data
 **/.pbi/cache.abf
 **/.pbi/localSettings.json
 *.pbix
 *.abf
 *.bak
 .env
-/synthetic/out/
-EOF
-mk .gitattributes <<'EOF'
-* text=auto
+/synthetic/out/'
+ATTR_RULES='# local/synthetic connection swap (see CLAUDE.md "Connections")
+*.tmdl filter=fabricconn'
+# add_once <file> <lines>: append each line not yet present
+add_once() { mkdir -p "$(dirname "$1")"; touch "$1"; while IFS= read -r l; do grep -qxF -- "$l" "$1" || echo "$l" >> "$1"; done <<< "$2"; }
+local_only=0
+[ $adopt -eq 1 ] && [ $track -eq 0 ] && local_only=1
+if [ $local_only -eq 1 ]; then
+  add_once .git/info/exclude "$IGNORE_RULES
+# workbench files: local only, never pushed to the client
+/CLAUDE.md
+/docs/
+/synthetic/"
+  add_once .git/info/attributes "$ATTR_RULES"
+  echo "  local-only: rules in .git/info/exclude and .git/info/attributes (nothing added to the client's tree)"
+else
+  mk .gitignore <<< "$IGNORE_RULES"
+  mk .gitattributes <<< "* text=auto
 *.sh text eol=lf
-# local/synthetic connection swap (see CLAUDE.md "Connections")
-*.tmdl filter=fabricconn
-EOF
+$ATTR_RULES"
+fi
 mk CLAUDE.md <<EOF
 # Client: $name
 
 Generic rules come from the workbench CLAUDE.md (parent folder). This file adds client rules.
 
 ## Layout
-- \`fabric/\`: the folder the client's Fabric workspaces sync to (DEV/UAT/PROD = branches dev/uat/prod).
+- Fabric item folders: synced to the client's workspaces (one branch per workspace, see client-specific rules).
 - \`synthetic/\`: synthetic data profile, generator config, local database scripts.
 - \`docs/\`: client decisions (\`docs/decisions.md\`) and notes.
 
@@ -79,7 +95,7 @@ mk docs/decisions.md <<'EOF'
 | Date | Decision | Reason |
 |---|---|---|
 EOF
-mkdir -p fabric synthetic
+mkdir -p synthetic
 
 # --- git settings (local only; shared by Windows git and WSL git) ---
 git config core.autocrlf true
